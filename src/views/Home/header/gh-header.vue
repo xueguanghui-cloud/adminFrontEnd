@@ -79,6 +79,7 @@ const handleLogout = (key: string) => {
     display: flex;
     align-items: center;
     justify-content: center;
+    margin-right: 20px;
     cursor: pointer;
     :deep(.el-dropdown) {
       font-size: 18px;

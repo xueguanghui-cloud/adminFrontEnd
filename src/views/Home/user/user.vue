@@ -1,29 +1,33 @@
 <script setup lang="ts">
-import { reactive, ref } from 'vue'
-import { getUserList, userDelete, getDeptList, getRoleList } from '@/api/index'
+import { nextTick, reactive, ref, toRaw } from 'vue'
+import {
+  getUserList,
+  userDelete,
+  getDeptList,
+  getRoleList,
+  createUserInfo,
+  exitUserInfo
+} from '@/api/index'
 import { ElMessage, type FormInstance } from 'element-plus'
+import type { IUser } from '@/stores/type'
+import { formatDate } from '@/utils/utils'
 
-interface User {
-  userId: number
-  userName: string
-  userEmail: string
-  role: number
-  state: number
-  createTime: string
-  lastLoginTime: string
-}
+// dialog true: 添加员工 false: 编辑员工
+const dialogInfo = ref(true)
+
 const formRef = ref<FormInstance>()
 
 // 选中员工id
 const checkedUserIds = ref<number[]>([])
 const columns = reactive([
-  { label: '员工ID', prop: 'userId' },
   { label: '员工姓名', prop: 'userName' },
   { label: '员工邮箱', prop: 'userEmail' },
+  { label: '手机号', prop: 'mobile' },
+  { label: '员工岗位', prop: 'job' },
   {
     label: '员工角色',
     prop: 'role',
-    formatter(row: User, column: any, value: number) {
+    formatter(row: IUser, column: any, value: number) {
       /* 0: 管理员, 1:普通员工 */
       return {
         0: '管理员',
@@ -34,7 +38,7 @@ const columns = reactive([
   {
     label: '员工状态',
     prop: 'state',
-    formatter(row: User, column: any, value: number) {
+    formatter(row: IUser, column: any, value: number) {
       /* 0: '在职' 1: '离职' 3: '试用期' */
       return {
         1: '在职',
@@ -43,10 +47,22 @@ const columns = reactive([
       }[value]
     }
   },
-  { label: '创建时间', prop: 'createTime' },
-  { label: '最后一次登录时间', prop: 'lastLoginTime' }
+  {
+    label: '创建时间',
+    prop: 'createTime',
+    formatter(row: IUser, column: any, value: string) {
+      return formatDate(new Date(value))
+    }
+  },
+  {
+    label: '最后一次登录时间',
+    prop: 'lastLoginTime',
+    formatter(row: IUser, column: any, value: string) {
+      return formatDate(new Date(value))
+    }
+  }
 ])
-const user = reactive({
+const searchUser = reactive({
   userId: '',
   userName: '',
   state: 0
@@ -56,11 +72,11 @@ const pager = reactive({
   pageSize: 10,
   total: 0
 })
-const userList = ref<User[]>([])
+const userList = ref<IUser[]>([])
 
 // 获取员工列表数据
 const getUerListData = () => {
-  getUserList({ ...user, ...pager }).then((res) => {
+  getUserList({ ...searchUser, ...pager }).then((res) => {
     userList.value = res.list
     pager.total = res.page.total
   })
@@ -88,9 +104,8 @@ const handlePatchDelete = () => {
 
   // 批量删除
   userDelete(checkedUserIds.value).then((res) => {
-    console.log(res)
-    if (res.nModified > 0) {
-      ElMessage.success(`成功删除${res.nModified}条`)
+    if (res.modifiedCount > 0) {
+      ElMessage.success(`成功删除${res.modifiedCount}条`)
       getUerListData()
     } else {
       ElMessage.success('删除失败')
@@ -99,7 +114,7 @@ const handlePatchDelete = () => {
 }
 
 // 员工选中操作
-const handleSelectionChange = (val: User[]) => {
+const handleSelectionChange = (val: IUser[]) => {
   // 首先将之前选中删除
   checkedUserIds.value.length = 0
   val.forEach((user) => {
@@ -108,15 +123,19 @@ const handleSelectionChange = (val: User[]) => {
 }
 
 // 编辑
-const handleEdit = (index: number, row: User) => {
-  console.log(index, row)
+const handleEdit = (row: IUser) => {
+  dialogFormVisible.value = true // 打开对话编辑页面
+  dialogInfo.value = false
+  nextTick(() => {
+    Object.assign(userForm.value, row)
+  })
 }
 
 // 删除
-const handleDelete = (row: User) => {
+const handleDelete = (row: IUser) => {
   userDelete([row.userId]).then((res) => {
-    if (res.nModified > 0) {
-      ElMessage.success(`成功删除${res.nModified}条`)
+    if (res.modifiedCount > 0) {
+      ElMessage.success(`成功删除${res.modifiedCount}条`)
       getUerListData()
     } else {
       ElMessage.success('删除失败')
@@ -147,10 +166,12 @@ interface IDept {
 const dialogFormVisible = ref(false)
 const roleList = ref<{ _id: string; roleName: string }[]>([])
 const deptIdList = ref<IDept[]>([])
-const userForm = ref({
+const userForm = ref<IUser>({
+  userId: '',
   userName: '',
   userEmail: '',
   mobile: '',
+  role: 0,
   job: '',
   state: 1,
   roleList: [],
@@ -177,50 +198,140 @@ const rules = reactive({
       message: '请输入合法手机号',
       trigger: 'blur'
     }
-  ],
-  deptId: [{ required: true, message: '请选择部门', trigger: 'blur' }]
+  ]
+  // deptId: [{ required: true, message: '请选择部门', trigger: 'blur' }]
 })
 // 获取角色列表
 getRoleList().then((res) => {
-  console.log(res)
   roleList.value = res
 })
 // 获取部门列表
 getDeptList().then((res) => {
-  console.log(res)
   deptIdList.value = res
 })
 
 // 打开新增员工dialog
 const handleCreate = () => {
+  dialogInfo.value = true
   dialogFormVisible.value = true
 }
 
-// 取消
+// 取消添加员工
 const cancel = () => {
   addUserForm.value?.resetFields()
   dialogFormVisible.value = false
 }
 
-// 确认
+// 确认添加员工
 const confirm = () => {
-  addUserForm.value?.resetFields()
-  dialogFormVisible.value = false
+  addUserForm.value?.validate((valid) => {
+    if (!valid) return
+    const params = toRaw(userForm.value)
+    if (dialogInfo.value) {
+      createUserInfo(params).then((res) => {
+        if (res) {
+          dialogFormVisible.value = false
+          addUserForm.value?.resetFields()
+          ElMessage.success('添加员工成功')
+          getUerListData()
+        }
+      })
+    } else {
+      exitUserInfo(params).then((res) => {
+        if (res) {
+          dialogFormVisible.value = false
+          addUserForm.value?.resetFields()
+          ElMessage.success('修改员工信息成功')
+          getUerListData()
+        }
+      })
+    }
+  })
 }
 </script>
 
 <template>
   <div class="user-manger">
+    <el-dialog
+      :title="dialogInfo ? '添加员工' : '修改员工信息'"
+      :close-on-click-modal="false"
+      :show-close="false"
+      v-model="dialogFormVisible"
+    >
+      <el-form ref="addUserForm" :model="userForm" label-width="100px" :rules="rules">
+        <el-form-item label="员工姓名" prop="userName">
+          <el-input
+            v-model="userForm.userName"
+            :disabled="!dialogInfo"
+            placeholder="请输入员工姓名"
+          />
+        </el-form-item>
+        <el-form-item label="员工邮箱" prop="userEmail">
+          <el-input v-model="userForm.userEmail" placeholder="请输入员工邮箱" />
+        </el-form-item>
+        <el-form-item label="手机号" prop="mobile">
+          <el-input v-model="userForm.mobile" placeholder="请输入手机号" />
+        </el-form-item>
+        <el-form-item label="员工岗位" prop="job">
+          <el-input v-model="userForm.job" placeholder="请输入员工岗位" />
+        </el-form-item>
+        <el-form-item label="员工权限" prop="role" style="width: 100%">
+          <el-select v-model="userForm.role" style="width: 100%">
+            <el-option :value="0" label="管理员"></el-option>
+            <el-option :value="1" label="普通员工"></el-option>
+          </el-select>
+        </el-form-item>
+        <el-form-item label="员工状态" prop="state" style="width: 100%">
+          <el-select v-model="userForm.state" style="width: 100%">
+            <el-option :value="1" label="在职"></el-option>
+            <el-option :value="2" label="离职"></el-option>
+            <el-option :value="3" label="试用期"></el-option>
+          </el-select>
+        </el-form-item>
+        <el-form-item label="系统角色" prop="roleList" style="width: 100%">
+          <el-select
+            multiple
+            style="width: 100%"
+            v-model="userForm.roleList"
+            placeholder="请选择员工角色"
+          >
+            <el-option
+              v-for="role in roleList"
+              :key="role._id"
+              :label="role.roleName"
+              :value="role._id"
+            ></el-option>
+          </el-select>
+        </el-form-item>
+        <el-form-item label="部门" prop="deptId" style="width: 100%">
+          <el-cascader
+            style="width: 100%"
+            :options="deptIdList"
+            placeholder="请选择所属部门"
+            show-all-levels
+            v-model="userForm.deptId"
+            clearable
+            :props="{ checkStrictly: true, value: '_id', label: 'deptName' }"
+          />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <span class="dialog-footer">
+          <el-button @click="cancel">取消</el-button>
+          <el-button type="primary" @click="confirm"> 确认 </el-button>
+        </span>
+      </template>
+    </el-dialog>
     <div class="query-form">
-      <el-form inline ref="formRef" :model="user" label-width="120px" class="demo-dynamic">
+      <el-form inline ref="formRef" :model="searchUser" label-width="120px" class="demo-dynamic">
         <el-form-item prop="userId" label="员工ID">
-          <el-input v-model="user.userId" placeholder="请输入员工ID" />
+          <el-input v-model="searchUser.userId" placeholder="请输入员工ID" />
         </el-form-item>
         <el-form-item prop="userName" label="员工名">
-          <el-input v-model="user.userName" placeholder="请输入员工姓名" />
+          <el-input v-model="searchUser.userName" placeholder="请输入员工姓名" />
         </el-form-item>
         <el-form-item prop="state" label="员工状态">
-          <el-select v-model="user.state" multiple style="width: 100%">
+          <el-select v-model="searchUser.state" style="width: 100%">
             <el-option :value="0" label="所有"></el-option>
             <el-option :value="1" label="在职"></el-option>
             <el-option :value="2" label="离职"></el-option>
@@ -254,7 +365,7 @@ const confirm = () => {
         />
         <el-table-column label="操作" width="150">
           <template #default="scope">
-            <el-button size="small" @click="handleEdit(scope.$index, scope.row)">编辑</el-button>
+            <el-button size="small" @click="handleEdit(scope.row)">编辑</el-button>
             <el-button size="small" type="danger" @click="handleDelete(scope.row)">
               删除
             </el-button>
@@ -269,58 +380,6 @@ const confirm = () => {
         @current-change="handleCurrentChange"
       />
     </div>
-    <el-dialog title="新增员工" v-model="dialogFormVisible">
-      <el-form ref="addUserForm" :model="userForm" label-width="100px" :rules="rules">
-        <el-form-item label="员工姓名" prop="userName">
-          <el-input v-model="userForm.userName" placeholder="请输入员工姓名" />
-        </el-form-item>
-        <el-form-item label="员工邮箱" prop="userEmail">
-          <el-input v-model="userForm.userEmail" placeholder="请输入员工邮箱">
-            <template #append> @163.com </template>
-          </el-input>
-        </el-form-item>
-        <el-form-item label="手机号" prop="mobile">
-          <el-input v-model="userForm.mobile" placeholder="请输入手机号" />
-        </el-form-item>
-        <el-form-item label="员工岗位" prop="job">
-          <el-input v-model="userForm.job" placeholder="请输入员工岗位" />
-        </el-form-item>
-        <el-form-item label="员工状态" prop="state" style="width: 100%">
-          <el-select v-model="userForm.state" style="width: 100%">
-            <el-option :value="1" label="在职"></el-option>
-            <el-option :value="2" label="离职"></el-option>
-            <el-option :value="3" label="试用期"></el-option>
-          </el-select>
-        </el-form-item>
-        <el-form-item label="系统角色" prop="roleList" style="width: 100%">
-          <el-select style="width: 100%" v-model="userForm.roleList" placeholder="请选择员工角色">
-            <el-option
-              v-for="role in roleList"
-              :key="role._id"
-              :label="role.roleName"
-              :value="role._id"
-            ></el-option>
-          </el-select>
-        </el-form-item>
-        <el-form-item label="部门" prop="deptId" style="width: 100%">
-          <el-cascader
-            style="width: 100%"
-            :options="deptIdList"
-            placeholder="请选择所属部门"
-            show-all-levels
-            v-model="userForm.deptId"
-            clearable
-            :props="{ checkStrictly: true, value: '_id', label: 'deptName' }"
-          />
-        </el-form-item>
-      </el-form>
-      <template #footer>
-        <span class="dialog-footer">
-          <el-button @click="cancel">取消</el-button>
-          <el-button type="primary" @click="confirm"> 确认 </el-button>
-        </span>
-      </template>
-    </el-dialog>
   </div>
 </template>
 

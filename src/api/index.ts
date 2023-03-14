@@ -2,6 +2,7 @@
  * API 管理
  */
 import ghRequest from '@/service/index'
+import type { IUser } from '@/stores/type'
 
 /**
  * 登录接口
@@ -17,7 +18,7 @@ export const login = (data: { userName: string; userPwd: string }) => {
  * @param params
  * @returns Promise
  */
-export const noticeCount = (params: any) => {
+export const noticeCount = () => {
   return ghRequest.get({ url: 'leave/count' })
 }
 
@@ -44,15 +45,6 @@ export const getUserList = (data: {
 }
 
 /**
- * 用户删除
- * @param userIds 需要删除的用户ID
- * @returns Pormise
- */
-export const userDelete = (userIds: number[]) => {
-  return ghRequest.post({ url: '/users/delete', data: userIds })
-}
-
-/**
  * 获取部门列表
  * @returns Pormise
  */
@@ -66,4 +58,31 @@ export const getDeptList = () => {
  */
 export const getRoleList = () => {
   return ghRequest.get({ url: '/role/allList' })
+}
+
+/**
+ * 添加员工
+ * @param data 员工信息
+ * @returns Promise
+ */
+export const createUserInfo = (data: IUser) => {
+  return ghRequest.post({ url: '/users/create', data })
+}
+
+/**
+ * 用户删除
+ * @param userIds 需要删除的用户ID
+ * @returns Pormise
+ */
+export const userDelete = (userIds: number[]) => {
+  return ghRequest.post({ url: '/users/delete', data: userIds })
+}
+
+/**
+ * 编辑员工信息
+ * @param data 新员工信息
+ * @returns Promise
+ */
+export const exitUserInfo = (data: IUser) => {
+  return ghRequest.post({ url: '/users/exit', data })
 }

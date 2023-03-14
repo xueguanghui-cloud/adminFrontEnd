@@ -17,7 +17,7 @@ const ghRequest = new GHRequest({
       const token = userStore().userInfo?.token
 
       if (token) {
-        config.headers!.Authorization = `Bear ${token}`
+        config.headers!.Authorization = `Bearer ${token}`
       }
 
       return config
@@ -33,7 +33,7 @@ const ghRequest = new GHRequest({
         ElMessage.error(TOKEN_INVALID)
         setTimeout(() => {
           router.push('/login') // 跳转到登录页
-        }, 2000)
+        }, 1500)
         return Promise.reject(TOKEN_INVALID)
       } else {
         ElMessage.error(msg || NETWORK_ERROR)

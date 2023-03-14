@@ -25,8 +25,8 @@ interface IEnvConfig {
 
 const EnvConfig: IEnvConfig = {
   development: {
-    baseApi: 'https://www.fastmock.site/mock/275021dd7fb89f79a158f6f95ab62b65/api',
-    // baseApi: 'http://localhost:3000/api',
+    // baseApi: 'https://www.fastmock.site/mock/275021dd7fb89f79a158f6f95ab62b65/api',
+    baseApi: 'http://localhost:3333/api',
     timeOut: 3000
   },
   test: {
